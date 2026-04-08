@@ -16,9 +16,9 @@ export default async function handler(req, res) {
 
   // Menu Logic
   if (incomingMsg === "1") {
-    replyMsg = "🛠️ This is GCTU Tech support team.";
+    replyMsg = "This is GCTU Tech support team.";
   } else if (incomingMsg === "2") {
-    replyMsg = "📍 Option 2: Our Engineering lab is at GCTU Tesano.";
+    replyMsg = "Our Engineering lab is at GCTU Tesano.";
   } else if (incomingMsg === "hi" || incomingMsg === "hello") {
     replyMsg = "Welcome to your Engineering Bot!🚀\nReply with:\n1. Tech Support\n2. Location";
   } else {
