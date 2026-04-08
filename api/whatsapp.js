@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   } else if (incomingMsg === "hi" || incomingMsg === "hello") {
     replyMsg = "Welcome to your Engineering Bot!🚀\nReply with:\n1. Tech Support\n2. Location";
   } else {
-    replyMsg = "You typed" + incomingMsg + ". \n Please reply with 1 or 2.";
+    replyMsg = "You typed: " + incomingMsg + ". \n Please reply with 1 or 2.";
   }
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${replyMsg}</Message></Response>`;
