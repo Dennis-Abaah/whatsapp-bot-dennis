@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
   // 3. Simple Restaurant Logic (Same as your WhatsApp one!)
   if (incomingText === '/start' || incomingText === 'hi') {
-    replyText = "✨ *WELCOME TO LUMINA DINING* ✨\n\nHow can we serve you today?\n1. View Menu\n2. Make a Reservation";
+    replyText = "✨ *WELCOME TO ABAAH DINING* ✨\n\nHow can we serve you today?\n1. View Menu\n2. Make a Reservation";
   } else if (incomingText === '1') {
     replyText = "🍽️ *OUR SIGNATURE DISHES*\n- Lobster Royale: GHS 250\n- Wagyu Burger: GHS 180\n\nReply with '2' to book a table.";
   } else {
