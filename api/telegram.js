@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   }
 
   // 4. Send the reply back to Telegram
-  const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`;
+  const TELEGRAM_API = `https://api.telegram.org/bot8664135740:AAFAzw4J2KO8bgr3BfqkQoXx-5J76D0Lpko/sendMessage`;
 
   try {
     await fetch(TELEGRAM_API, {
