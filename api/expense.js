@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // 1. Basic Safety Check
   if (req.method !== 'POST') return res.status(200).send('System Live');
 
   const message = req.body?.message;
@@ -9,77 +8,74 @@ export default async function handler(req, res) {
   const text = message.text.trim();
   const lowerText = text.toLowerCase();
 
-  // ---------------------------------------------------------
-  // 2. MODERN WELCOME TEMPLATE
-  // ---------------------------------------------------------
+  // 1. Welcome Message
   const greetings = ['hi', 'hello', '/start', 'hey'];
-  
   if (greetings.includes(lowerText)) {
     const welcomeMsg = 
-      "📊 *SikaTracker v1.0* \n" +
+      "📊 *SikaTracker v1.1* \n" +
       "━━━━━━━━━━━━━━━━━━\n" +
-      "Welcome! I'm your automated expense assistant. I'll help you sync your spending directly to your Google Sheet.\n\n" +
-      "💡 *How to log an expense:*\n" +
-      "Simply type: `Item Price Date` \n\n" +
-      "📍 *Example:*\n" +
-      "`Fried Rice 45 10/04/26` \n\n" +
-      "━━━━━━━━━━━━━━━━━━\n" +
-      "Ready when you are. What did you buy?";
-
+      "Fast Logging enabled! 🚀\n\n" +
+      "✅ *Today's Expense:* `Item Price` \n" +
+      "_(e.g. Gob3 15)_\n\n" +
+      "📅 *Past Expense:* `Item Price Date` \n" +
+      "━━━━━━━━━━━━━━━━━━";
     await sendMessage(chatId, welcomeMsg);
     return res.status(200).send('OK');
   }
 
-  // ---------------------------------------------------------
-  // 3. EXPENSE PARSING LOGIC
-  // ---------------------------------------------------------
+  // 2. SMART PARSING LOGIC
   const parts = text.split(' ');
-  
-  if (parts.length < 3) {
-    await sendMessage(chatId, "⚠️ *Format Error*\nUse: `Item Price Date` \nExample: `Mango 20 10/04/26` ");
+
+  if (parts.length < 2) {
+    await sendMessage(chatId, "⚠️ Please enter at least `Item` and `Price`.");
     return res.status(200).send('OK');
   }
 
-  // Extract from the end to allow for multi-word items (e.g., "Club Sandwich")
-  const date = parts.pop();         
-  const price = parts.pop();        
-  const item = parts.join(' ');     
+  let item, price, date;
 
-  const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+  // Check if the last part looks like a date (contains a slash /)
+  const lastPart = parts[parts.length - 1];
+  const isDateProvided = lastPart.includes('/');
 
+  if (isDateProvided) {
+    date = parts.pop();         // Use provided date
+    price = parts.pop();        // Second to last is price
+    item = parts.join(' ');     // Everything else is item
+  } else {
+    // AUTO-DATE LOGIC: Get Ghana Time (GMT)
+    const now = new Date();
+    const ghanaTime = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Accra',
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    }).format(now);
+    
+    date = ghanaTime;           // Use today's date automatically
+    price = parts.pop();        // Last part is price
+    item = parts.join(' ');     // Everything else is item
+  }
+
+  // 3. SEND TO GOOGLE SHEETS
   try {
-    // Fire the "typing..." indicator to feel more "AI"
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendChatAction`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, action: 'typing' })
-    });
-
-    await fetch(APPS_SCRIPT_URL, {
+    await fetch(process.env.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item, price, date })
     });
     
-    await sendMessage(chatId, `✅ *Transaction Synced!*\n\n🛒 *Item:* ${item}\n💰 *Price:* GHS ${price}\n📅 *Date:* ${date}`);
+    await sendMessage(chatId, `✅ *Saved!*\n🛒 ${item}\n💰 GHS ${price}\n📅 ${date}`);
   } catch (err) {
-    await sendMessage(chatId, "❌ *Server Error:* Could not reach Google Sheets.");
+    await sendMessage(chatId, "❌ Error reaching Sheets.");
   }
 
   return res.status(200).send('OK');
 }
 
-// ---------------------------------------------------------
-// 4. HELPER FUNCTION
-// ---------------------------------------------------------
 async function sendMessage(chatId, text) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      chat_id: chatId, 
-      text: text,
-      parse_mode: 'Markdown' // This makes the bolding and mono-font work
-    })
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' })
   });
 }
