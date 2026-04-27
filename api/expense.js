@@ -48,6 +48,7 @@ export default async function handler(req, res) {
 
   // --- 3. MODERN WELCOME & MAIN MENU ---
   const greetings = ['hi', 'hello', '/start', 'hey'];
+  const thanks = ['thanks', 'thank you'];
   if (greetings.includes(lowerText)) {
     const mainMenu = {
       inline_keyboard: [
@@ -69,8 +70,21 @@ export default async function handler(req, res) {
     await sendTyping(chatId);
     await sendMessage(chatId, welcomeMsg, mainMenu);
     return res.status(200).send('OK');
-  }
+  } 
 
+  // thanks message
+
+   if (thanks.includes(lowerText)) {
+
+    const ThanksMsg = 
+      "💎 You are welcome..💎\n" +
+      "━━━━━━━━━━━━━━━━━━\n" +
+      "Your personal expense engineer. I sync your spending directly to Google Sheets with zero friction.\n" 
+    await sendTyping(chatId);
+    await sendMessage(chatId, ThanksMsg);
+    return res.status(200).send('OK');
+  }
+  
   // --- 4. REPORT SEARCH BY DATE ---
   if (lowerText.startsWith('view ')) {
     const searchDate = text.split(' ')[1];
