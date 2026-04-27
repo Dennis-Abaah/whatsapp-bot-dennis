@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(200).send('OK');
 
@@ -13,7 +12,9 @@ export default async function handler(req, res) {
       const [, item, price, dayType] = dataParts;
       const finalDate = getFormattedDate(dayType);
       
+      await sendTyping(chatId); // 👈 Trigger typing effect
       await callAppsScript({ action: 'add', item, price, date: finalDate });
+      
       await editMessage(chatId, callback.message.message_id, `✅ *Transaction Synced!*\n\n🛒 *Item:* ${item}\n💰 *Price:* GHS ${price}\n📅 *Date:* ${finalDate}`);
     } 
     else if (action === 'older') {
@@ -24,11 +25,13 @@ export default async function handler(req, res) {
       await sendReportsMenu(chatId);
     }
     else if (action === 'view_all') {
+      await sendTyping(chatId); // 👈 Trigger typing effect
       const data = await callAppsScript({ action: 'readAll' });
       await sendMessage(chatId, formatReport("Full Report (Last 10)", data));
     }
     else if (action === 'view_today') {
       const today = getFormattedDate('today');
+      await sendTyping(chatId); // 👈 Trigger typing effect
       const data = await callAppsScript({ action: 'readByDate', date: today });
       await sendMessage(chatId, formatReport(`Report for ${today}`, data));
     }
@@ -71,6 +74,7 @@ export default async function handler(req, res) {
   // --- 4. REPORT SEARCH BY DATE ---
   if (lowerText.startsWith('view ')) {
     const searchDate = text.split(' ')[1];
+    await sendTyping(chatId);
     const data = await callAppsScript({ action: 'readByDate', date: searchDate });
     await sendMessage(chatId, formatReport(`Report for ${searchDate}`, data));
     return res.status(200).send('OK');
@@ -83,15 +87,14 @@ export default async function handler(req, res) {
     return res.status(200).send('OK');
   }
 
-  // Check if a date was already provided (contains a /)
   if (parts[parts.length - 1].includes('/')) {
     const date = parts.pop();
     const price = parts.pop();
     const item = parts.join(' ');
+    await sendTyping(chatId);
     await callAppsScript({ action: 'add', item, price, date });
     await sendMessage(chatId, `✅ *Saved!*\n🛒 ${item} | 💰 GHS ${price} | 📅 ${date}`);
   } else {
-    // Show buttons for Today, Yesterday, or Older
     const price = parts.pop();
     const item = parts.join(' ');
     await sendDateKeyboard(chatId, item, price);
@@ -101,6 +104,14 @@ export default async function handler(req, res) {
 }
 
 // --- HELPER FUNCTIONS ---
+
+async function sendTyping(chatId) {
+  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendChatAction`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, action: 'typing' })
+  });
+}
 
 async function sendDateKeyboard(chatId, item, price) {
   const keyboard = {
@@ -133,9 +144,7 @@ function formatReport(title, rows) {
   let dataArr;
   try {
     dataArr = typeof rows === 'string' ? JSON.parse(rows) : rows;
-  } catch (e) {
-    return `📂 *${title}*\nError parsing data.`;
-  }
+  } catch (e) { return `📂 *${title}*\nError parsing data.`; }
 
   if (!Array.isArray(dataArr) || dataArr.length === 0) return `📂 *${title}*\nNo data found.`;
 
@@ -179,10 +188,10 @@ async function sendMessage(chatId, text, keyboard = null) {
   });
 }
 
-async function editMessage(chatId, msgId, text) {
+async function editMessage(chat_id, message_id, text) {
   await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/editMessageText`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, message_id: msgId, text: text, parse_mode: 'Markdown' })
+    body: JSON.stringify({ chat_id, message_id, text, parse_mode: 'Markdown' })
   });
 }
