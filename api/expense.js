@@ -1,3 +1,5 @@
+import fetch from 'node-fetch';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(200).send('OK');
 
@@ -12,12 +14,24 @@ export default async function handler(req, res) {
       const [, item, price, dayType] = dataParts;
       const finalDate = getFormattedDate(dayType);
       
-      await saveToSheets(item, price, finalDate);
+      await callAppsScript({ action: 'add', item, price, date: finalDate });
       await editMessage(chatId, callback.message.message_id, `✅ *Transaction Synced!*\n\n🛒 *Item:* ${item}\n💰 *Price:* GHS ${price}\n📅 *Date:* ${finalDate}`);
     } 
     else if (action === 'older') {
       const [, item, price] = dataParts;
       await editMessage(chatId, callback.message.message_id, `🗓 *Manual Entry Required*\n\nTo log *${item}* for a specific date, please send the message again in this format:\n\n\`${item} ${price} DD/MM/YY\``);
+    }
+    else if (action === 'reports') {
+      await sendReportsMenu(chatId);
+    }
+    else if (action === 'view_all') {
+      const data = await callAppsScript({ action: 'readAll' });
+      await sendMessage(chatId, formatReport("Full Report (Last 10)", data));
+    }
+    else if (action === 'view_today') {
+      const today = getFormattedDate('today');
+      const data = await callAppsScript({ action: 'readByDate', date: today });
+      await sendMessage(chatId, formatReport(`Report for ${today}`, data));
     }
     return res.status(200).send('OK');
   }
@@ -30,27 +44,40 @@ export default async function handler(req, res) {
   const text = message.text.trim();
   const lowerText = text.toLowerCase();
 
-  // --- 3. MODERN WELCOME TEMPLATE ---
+  // --- 3. MODERN WELCOME & MAIN MENU ---
   const greetings = ['hi', 'hello', '/start', 'hey'];
   if (greetings.includes(lowerText)) {
+    const mainMenu = {
+      inline_keyboard: [
+        [{ text: "📊 View Reports", callback_data: "reports" }],
+        [{ text: "🌐 Open Spreadsheet", url: `https://docs.google.com/spreadsheets/d/${process.env.SPREADSHEET_ID}` }]
+      ]
+    };
+
     const welcomeMsg = 
-      "💎 *SIKATRACKER v2.0* 💎\n" +
+      "💎 *SIKATRACKER v3.0* 💎\n" +
       "━━━━━━━━━━━━━━━━━━\n" +
       "Your personal expense engineer. I sync your spending directly to Google Sheets with zero friction.\n\n" +
       "🚀 *Quick Log (Today)*\n" +
       "└ Type: `Item Price` (e.g. `Lunch 25`)\n\n" +
       "📅 *Custom Date*\n" +
       "└ Type: `Item Price Date` (e.g. `Fuel 100 08/04/26`)\n\n" +
-      "📊 *Current Sheet:*\n" +
-      "[View My Expenses](https://docs.google.com/spreadsheets/d/" + process.env.SPREADSHEET_ID + ")\n" +
       "━━━━━━━━━━━━━━━━━━\n" +
       "_*What did we spend today?*_";
 
-    await sendMessage(chatId, welcomeMsg);
+    await sendMessage(chatId, welcomeMsg, mainMenu);
     return res.status(200).send('OK');
   }
 
-  // --- 4. SMART PARSING ---
+  // --- 4. REPORT SEARCH BY DATE ---
+  if (lowerText.startsWith('view ')) {
+    const searchDate = text.split(' ')[1];
+    const data = await callAppsScript({ action: 'readByDate', date: searchDate });
+    await sendMessage(chatId, formatReport(`Report for ${searchDate}`, data));
+    return res.status(200).send('OK');
+  }
+
+  // --- 5. SMART PARSING FOR ADDING EXPENSES ---
   const parts = text.split(' ');
   if (parts.length < 2) {
     await sendMessage(chatId, "⚠️ *Invalid Format*\nUse: `Item Price` or `Item Price DD/MM/YY` ");
@@ -62,7 +89,7 @@ export default async function handler(req, res) {
     const date = parts.pop();
     const price = parts.pop();
     const item = parts.join(' ');
-    await saveToSheets(item, price, date);
+    await callAppsScript({ action: 'add', item, price, date });
     await sendMessage(chatId, `✅ *Saved!*\n🛒 ${item} | 💰 GHS ${price} | 📅 ${date}`);
   } else {
     // Show buttons for Today, Yesterday, or Older
@@ -88,8 +115,49 @@ async function sendDateKeyboard(chatId, item, price) {
       ]
     ]
   };
-
   await sendMessage(chatId, `Confirming: *${item}* for *₵${price}*.\nWhen did this happen?`, keyboard);
+}
+
+async function sendReportsMenu(chatId) {
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: "📝 Last 10 Entries", callback_data: "view_all" }],
+      [{ text: "📅 Today's Summary", callback_data: "view_today" }]
+    ]
+  };
+  await sendMessage(chatId, "📋 *Select a Report Type:*", keyboard);
+}
+
+function formatReport(title, rows) {
+  if (!rows || rows.length === 0 || rows === "[]") return `📂 *${title}*\nNo data found for this selection.`;
+  
+  let dataArr;
+  try {
+    dataArr = typeof rows === 'string' ? JSON.parse(rows) : rows;
+  } catch (e) {
+    return `📂 *${title}*\nError parsing data.`;
+  }
+
+  if (!Array.isArray(dataArr) || dataArr.length === 0) return `📂 *${title}*\nNo data found.`;
+
+  let report = `📂 *${title}*\n━━━━━━━━━━━━━━━━━━\n`;
+  let total = 0;
+  dataArr.forEach(row => {
+    report += `• ${row[0]}: *₵${row[1]}*\n`;
+    total += parseFloat(row[1]);
+  });
+  report += `━━━━━━━━━━━━━━━━━━\n💰 *Total: ₵${total.toFixed(2)}*`;
+  return report;
+}
+
+async function callAppsScript(payload) {
+  const res = await fetch(process.env.APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch (e) { return text; }
 }
 
 function getFormattedDate(type) {
@@ -99,14 +167,6 @@ function getFormattedDate(type) {
     timeZone: 'Africa/Accra',
     day: '2-digit', month: '2-digit', year: '2-digit'
   }).format(date);
-}
-
-async function saveToSheets(item, price, date) {
-  await fetch(process.env.APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item, price, date })
-  });
 }
 
 async function sendMessage(chatId, text, keyboard = null) {
