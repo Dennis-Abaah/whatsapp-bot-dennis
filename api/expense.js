@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       "└ Type: `Item Price Date` (e.g. `Fuel 100 08/04/26`)\n\n" +
       "━━━━━━━━━━━━━━━━━━\n" +
       "_*What did we spend today?*_";
-
+    await sendTyping(chatId);
     await sendMessage(chatId, welcomeMsg, mainMenu);
     return res.status(200).send('OK');
   }
